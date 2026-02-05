@@ -1,0 +1,37 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "grouptwo-chattingapp",
+          "appId": "1:783546365438:android:47d96a358288c566b73caf",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "grouptwo-chattingapp",
+          "configurations": {
+            "android": "1:783546365438:android:47d96a358288c566b73caf",
+            "web": "1:783546365438:web:eda8c87580b042d0b73caf",
+            "windows": "1:783546365438:web:9eaed7eef700084ab73caf"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

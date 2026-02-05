@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "783546365438",
+    "project_id": "grouptwo-chattingapp",
+    "storage_bucket": "grouptwo-chattingapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:783546365438:android:47d96a358288c566b73caf",
+        "android_client_info": {
+          "package_name": "com.example.group_two_chatting_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSw_PiXfTJDsZuBkEurbOVClamhxsNT_g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
