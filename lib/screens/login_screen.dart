@@ -11,6 +11,66 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _pass = TextEditingController();
+  bool _isLoading = false; // Tracks if the login process is active
+
+  // Main login function with error handling
+  Future<void> _handleLogin() async {
+    // Basic validation to save network calls
+    if (_email.text.trim().isEmpty || _pass.text.trim().isEmpty) {
+      _showErrorSnackbar("Please fill in all fields.");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _email.text.trim(),
+        password: _pass.text.trim(),
+      );
+      // On success, Firebase usually updates the auth state listener
+      // If you want to navigate manually, add code here.
+    } on FirebaseAuthException catch (e) {
+      // Map Firebase error codes to user-friendly messages
+      String errorMessage = "Authentication failed.";
+
+      if (e.code == 'user-not-found' ||
+          e.code == 'wrong-password' ||
+          e.code == 'invalid-credential') {
+        errorMessage = "Invalid email or password.";
+      } else if (e.code == 'network-request-failed') {
+        errorMessage = "Network error. Please check your internet connection.";
+      } else if (e.code == 'user-disabled') {
+        errorMessage = "This account has been disabled.";
+      } else if (e.code == 'too-many-requests') {
+        errorMessage = "Too many attempts. Please try again later.";
+      }
+
+      _showErrorSnackbar(errorMessage);
+    } catch (e) {
+      _showErrorSnackbar("An unexpected error occurred: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // Helper method to show error messages
+  void _showErrorSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _pass.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,12 +128,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
                 ),
-                onPressed: () =>
-                    FirebaseAuth.instance.signInWithEmailAndPassword(
-                      email: _email.text.trim(),
-                      password: _pass.text.trim(),
-                    ),
-                child: const Text("Sign In", style: TextStyle(fontSize: 16)),
+                onPressed: _isLoading ? null : _handleLogin,
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text("Sign In", style: TextStyle(fontSize: 16)),
               ),
               const SizedBox(height: 8),
               TextButton(
