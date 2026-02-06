@@ -1,3 +1,16 @@
+Mobile App assignment 
+
+1. create a flutter app for Chatting using Firebase
+REQUIREMENTS
+
+User Authentication
+View other users
+Send and receive text
+Receive Notifications
+[project should be in a github, SHOWING ALL MEMBERS' PERTICIPATION]
+
+
+
 # Group Two Chatting App
 
 A professional Flutter chat application with Firebase integration, featuring real-time messaging, user authentication, and a modern Material Design 3 interface.
