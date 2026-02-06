@@ -6,7 +6,10 @@ class DatabaseService {
   final String currentUid = FirebaseAuth.instance.currentUser!.uid;
 
   Future<void> startNewChat(String email, String groupName) async {
-    var query = await _db.collection('users').where('email', isEqualTo: email).get();
+    var query = await _db
+        .collection('users')
+        .where('email', isEqualTo: email)
+        .get();
 
     if (query.docs.isEmpty) throw Exception("User not found!");
 
