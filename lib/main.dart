@@ -65,9 +65,20 @@ class _MyChatAppState extends State<MyChatApp> {
           }
           // If user is logged in, show Chat List, otherwise show Login
           if (snapshot.hasData) {
-            return ChatListScreen(
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text('Chats'),
+                actions: [
+                  Switch(
+                    value: _isDarkMode,
+                    onChanged: _toggleTheme,
+                  ),
+                ],
+              ),
+              body: ChatListScreen(
                 isDarkMode: _isDarkMode,
-                onThemeChanged: _toggleTheme
+                onThemeChanged: _toggleTheme,
+              ),
             );
           }
           return const LoginScreen();
