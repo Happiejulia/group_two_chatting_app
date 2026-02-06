@@ -12,24 +12,79 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _pass = TextEditingController();
+  bool _isLoading = false;
 
   Future<void> _register() async {
-    UserCredential cred = await FirebaseAuth.instance
-        .createUserWithEmailAndPassword(
-          email: _email.text.trim(),
-          password: _pass.text.trim(),
-        );
+    // 1. Basic Validation
+    if (_name.text.trim().isEmpty ||
+        _email.text.trim().isEmpty ||
+        _pass.text.trim().isEmpty) {
+      _showErrorSnackbar("Please fill in all fields.");
+      return;
+    }
 
-    await cred.user!.updateDisplayName(_name.text.trim());
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(cred.user!.uid)
-        .set({
-          'uid': cred.user!.uid,
-          'name': _name.text.trim(),
-          'email': _email.text.trim(),
-        });
-    if (mounted) Navigator.pop(context);
+    setState(() => _isLoading = true);
+
+    try {
+      // 2. Create User in Firebase Auth
+      UserCredential cred = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+            email: _email.text.trim(),
+            password: _pass.text.trim(),
+          );
+
+      // 3. Update Display Name
+      await cred.user!.updateDisplayName(_name.text.trim());
+
+      // 4. Save to Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(cred.user!.uid)
+          .set({
+            'uid': cred.user!.uid,
+            'name': _name.text.trim(),
+            'email': _email.text.trim(),
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+      if (mounted) Navigator.pop(context);
+    } on FirebaseAuthException catch (e) {
+      // 5. Handle Firebase Specific Errors
+      String message = "Registration failed.";
+      if (e.code == 'email-already-in-use') {
+        message = "This email is already registered.";
+      } else if (e.code == 'invalid-email') {
+        message = "The email address is not valid.";
+      } else if (e.code == 'weak-password') {
+        message = "The password is too weak.";
+      } else if (e.code == 'network-request-failed') {
+        message = "Network error. Please check your connection.";
+      }
+      _showErrorSnackbar(message);
+    } catch (e) {
+      // 6. Handle Generic Errors (Firestore, etc.)
+      _showErrorSnackbar("An unexpected error occurred. Please try again.");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showErrorSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _email.dispose();
+    _pass.dispose();
+    super.dispose();
   }
 
   @override
@@ -68,6 +123,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
+                textCapitalization: TextCapitalization.words,
               ),
               const SizedBox(height: 16),
               TextField(
@@ -103,8 +159,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
                 ),
-                onPressed: _register,
-                child: const Text("Register", style: TextStyle(fontSize: 16)),
+                onPressed: _isLoading ? null : _register,
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text("Register", style: TextStyle(fontSize: 16)),
               ),
               const SizedBox(height: 16),
               TextButton(
