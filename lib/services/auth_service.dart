@@ -5,49 +5,45 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // Sign Up with Email and Name
   Future<User?> registerUser(String email, String password, String name) async {
     try {
       UserCredential result = await _auth.createUserWithEmailAndPassword(
-          email: email,
-          password: password
+        email: email.trim(),
+        password: password,
       );
       User? user = result.user;
 
-      // Update the user profile with their name
       await user?.updateDisplayName(name);
 
-      // Create a document for the user in Firestore
+      // CRITICAL: This allows other users to find them by email
       await _db.collection('users').doc(user?.uid).set({
         'uid': user?.uid,
         'name': name,
-        'email': email,
+        'email': email
+            .trim()
+            .toLowerCase(), // Store lowercase for easier searching
         'createdAt': FieldValue.serverTimestamp(),
       });
 
       return user;
     } catch (e) {
-      print(e.toString());
+      print("Register Error: $e");
       return null;
     }
   }
 
-  // Sign In
   Future<User?> loginUser(String email, String password) async {
     try {
       UserCredential result = await _auth.signInWithEmailAndPassword(
-          email: email,
-          password: password
+        email: email.trim(),
+        password: password,
       );
       return result.user;
     } catch (e) {
-      print(e.toString());
+      print("Login Error: $e");
       return null;
     }
   }
 
-  // Sign Out
-  Future<void> signOut() async {
-    await _auth.signOut();
-  }
+  Future<void> signOut() async => await _auth.signOut();
 }
