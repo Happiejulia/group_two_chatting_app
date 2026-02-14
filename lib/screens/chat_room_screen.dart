@@ -6,16 +6,33 @@ import '../services/database_service.dart';
 
 class ChatRoomScreen extends StatelessWidget {
   final String groupId;
+  final List<dynamic> members;
   final _msgController = TextEditingController();
 
-  ChatRoomScreen({super.key, required this.groupId});
+  ChatRoomScreen({super.key, required this.groupId, required this.members});
 
   @override
   Widget build(BuildContext context) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Chat Room"), elevation: 1),
+      appBar: AppBar(
+        title: FutureBuilder<String>(
+          future: DatabaseService().getRecipientEmail(members),
+          builder: (context, snapshot) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("Chat", style: TextStyle(fontSize: 18)),
+                Text(
+                  snapshot.data ?? "Loading...",
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
       body: Column(
         children: [
           Expanded(
@@ -27,12 +44,8 @@ class ChatRoomScreen extends StatelessWidget {
                   .orderBy('createdAt', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (!snapshot.hasData)
                   return const Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text("Say hello! 👋"));
-                }
 
                 final messages = snapshot.data!.docs
                     .map((doc) => MessageModel.fromFirestore(doc))
@@ -40,15 +53,11 @@ class ChatRoomScreen extends StatelessWidget {
 
                 return ListView.builder(
                   reverse: true,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 16,
-                  ),
+                  padding: const EdgeInsets.all(12),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
                     final isMe = msg.senderId == currentUserId;
-
                     return _buildMessageBubble(msg, isMe);
                   },
                 );
@@ -72,9 +81,8 @@ class ChatRoomScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
             margin: const EdgeInsets.symmetric(vertical: 4),
-            constraints: const BoxConstraints(maxWidth: 280),
             decoration: BoxDecoration(
-              color: isMe ? Colors.blueAccent : Colors.grey[200],
+              color: isMe ? Colors.blueAccent : Colors.grey[300],
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(16),
                 topRight: const Radius.circular(16),
@@ -84,18 +92,12 @@ class ChatRoomScreen extends StatelessWidget {
             ),
             child: Text(
               msg.text,
-              style: TextStyle(
-                color: isMe ? Colors.white : Colors.black87,
-                fontSize: 16,
-              ),
+              style: TextStyle(color: isMe ? Colors.white : Colors.black87),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8, left: 4, right: 4),
-            child: Text(
-              msg.formattedTime,
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
-            ),
+          Text(
+            msg.formattedTime,
+            style: const TextStyle(fontSize: 10, color: Colors.grey),
           ),
         ],
       ),
@@ -103,12 +105,8 @@ class ChatRoomScreen extends StatelessWidget {
   }
 
   Widget _buildInputArea() {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
-      ),
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
       child: Row(
         children: [
           Expanded(
@@ -116,25 +114,20 @@ class ChatRoomScreen extends StatelessWidget {
               controller: _msgController,
               decoration: InputDecoration(
                 hintText: "Type a message...",
+                filled: true,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(25),
                   borderSide: BorderSide.none,
                 ),
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            backgroundColor: Colors.blueAccent,
-            child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white),
-              onPressed: () {
-                DatabaseService().sendMessage(groupId, _msgController.text);
-                _msgController.clear();
-              },
-            ),
+          IconButton(
+            icon: const Icon(Icons.send, color: Colors.blueAccent),
+            onPressed: () {
+              DatabaseService().sendMessage(groupId, _msgController.text);
+              _msgController.clear();
+            },
           ),
         ],
       ),

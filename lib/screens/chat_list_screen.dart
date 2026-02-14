@@ -9,36 +9,122 @@ class ChatListScreen extends StatelessWidget {
   final bool isDarkMode;
   final Function(bool) onThemeChanged;
 
-  const ChatListScreen({super.key, required this.isDarkMode, required this.onThemeChanged});
+  const ChatListScreen({
+    super.key,
+    required this.isDarkMode,
+    required this.onThemeChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
+    String myUid = FirebaseAuth.instance.currentUser!.uid;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Messages"),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(
-                builder: (c) => SettingsScreen(isDarkMode: isDarkMode, onThemeChanged: onThemeChanged))),
-          )
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (c) => SettingsScreen(
+                  isDarkMode: isDarkMode,
+                  onThemeChanged: onThemeChanged,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
-      body: StreamBuilder(
-        stream: FirebaseFirestore.instance.collection('groups')
-            .where('members', arrayContains: FirebaseAuth.instance.currentUser!.uid)
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('groups')
+            .where('members', arrayContains: myUid)
             .snapshots(),
-        builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          if (snapshot.data!.docs.isEmpty) return const Center(child: Text("No chats. Tap + to start!"));
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          return ListView(
-            children: snapshot.data!.docs.map((doc) => ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.person)),
-              title: Text(doc['name']),
-              subtitle: Text(doc['lastMessage']),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChatRoomScreen(groupId: doc.id))),
-            )).toList(),
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text("No chats yet. Tap + to start!"));
+          }
+
+          // FIX: Safely check for 'hiddenBy' field to avoid "Bad State" error
+          final docs = snapshot.data!.docs.where((d) {
+            final data = d.data() as Map<String, dynamic>;
+            // If the field doesn't exist (old documents), treat as empty list
+            List hiddenBy = data.containsKey('hiddenBy')
+                ? data['hiddenBy']
+                : [];
+            return !hiddenBy.contains(myUid);
+          }).toList();
+
+          if (docs.isEmpty) {
+            return const Center(child: Text("No active chats."));
+          }
+
+          return ListView.builder(
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              var doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+
+              return Dismissible(
+                key: Key(doc.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  color: Colors.red,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  child: const Icon(Icons.delete, color: Colors.white),
+                ),
+                confirmDismiss: (direction) async {
+                  return await showDialog(
+                    context: context,
+                    builder: (c) => AlertDialog(
+                      title: const Text("Delete Chat?"),
+                      content: const Text(
+                        "This will remove the chat from your list for you.",
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(c, false),
+                          child: const Text("Cancel"),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(c, true),
+                          child: const Text(
+                            "Delete",
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                onDismissed: (_) => DatabaseService().hideChat(doc.id),
+                child: ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.person)),
+                  title: Text(data['name'] ?? 'Unnamed Group'),
+                  subtitle: Text(
+                    data['lastMessage'] ?? 'No messages yet',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (c) => ChatRoomScreen(
+                        groupId: doc.id,
+                        members: data['members'],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
@@ -49,19 +135,54 @@ class ChatListScreen extends StatelessWidget {
     );
   }
 
-  void _showAddChat(context) {
-    final email = TextEditingController();
-    final name = TextEditingController();
-    showDialog(context: context, builder: (c) => AlertDialog(
-      title: const Text("Start Chat"),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: name, decoration: const InputDecoration(hintText: "Chat Name")),
-        TextField(controller: email, decoration: const InputDecoration(hintText: "Friend's Email")),
-      ]),
-      actions: [ElevatedButton(onPressed: () {
-        DatabaseService().startNewChat(email.text, name.text);
-        Navigator.pop(c);
-      }, child: const Text("Create"))],
-    ));
+  void _showAddChat(BuildContext context) {
+    final emailController = TextEditingController();
+    final nameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text("Start New Chat"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(hintText: "Chat Name"),
+            ),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(hintText: "Friend's Email"),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                if (emailController.text.isEmpty ||
+                    nameController.text.isEmpty) {
+                  throw "Please fill in all fields";
+                }
+                await DatabaseService().startNewChat(
+                  emailController.text,
+                  nameController.text,
+                );
+                Navigator.pop(c);
+              } catch (e) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(e.toString())));
+              }
+            },
+            child: const Text("Create"),
+          ),
+        ],
+      ),
+    );
   }
 }
